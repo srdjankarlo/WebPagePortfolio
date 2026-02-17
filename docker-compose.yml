@@ -21,7 +21,7 @@ services:
     # user and pass: placeholders for db credentials
     # db is the name of the service below
     environment:
-      - DB_URL=postgres://user:pass@db:5432/portfolio
+      - DB_URL=postgres://user:pass@db:5432/portfolio?sslmode=disable
     # dont start backend until the db is ready
     depends_on:
       - db
@@ -37,3 +37,5 @@ services:
       - POSTGRES_DB=portfolio
     ports:
       - "5432:5432"
+    volumes:
+      - ./db-init:/docker-entrypoint-initdb.d
