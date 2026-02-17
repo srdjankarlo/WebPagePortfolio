@@ -1,2 +1,25 @@
 # --- Other ---
 documents
+
+# --- Binaries & Executables
+main.exe
+
+# --- Docker & Environment ---
+.env
+docker-data/
+
+# --- Go Dependencies ---
+vendor/
+
+# --- Frontend ---
+node_modules/
+.pnp
+.pnp.js
+dist/
+build/
+.DS_Store
+
+# --- IDEs ---
+.vscode/
+.idea/
+*.swp
