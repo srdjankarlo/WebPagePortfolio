@@ -1,22 +1,40 @@
 package main
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
 	"os"
+	"strings"
+	"time"
 
+	"github.com/golang-jwt/jwt/v5"
 	_ "github.com/lib/pq"
 	"golang.org/x/crypto/bcrypt"
 )
+
+// secret key for signing tokens - In production, this goes in a .env file!
+var jwtKey = []byte("my_ultra_secret_key")
+
+type Claims struct {
+	Username string `json:"username"`
+	jwt.RegisteredClaims
+}
 
 // User struct matches your database columns
 type User struct {
 	Username string `json:"username"`
 	Email    string `json:"email"`
 	Password string `json:"password"`
+}
+
+type Score struct {
+	Username string `json:"username"`
+	GameName string `json:"game_name"`
+	Score    int    `json:"score"`
 }
 
 var db *sql.DB
@@ -29,9 +47,12 @@ func main() {
 		log.Fatal(err)
 	}
 
-	// Route for Registration, Login
+	// Route for Registration, Login...
 	http.HandleFunc("/register", registerHandler)
 	http.HandleFunc("/login", loginHandler)
+	// Wrap the submit-score handler with the "Security Guard" (AuthMiddleware)
+	http.Handle("/submit-score", AuthMiddleware(http.HandlerFunc(submitScoreHandler)))
+	http.HandleFunc("/leaderboard", leaderboardHandler)
 
 	// Simple check route
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
@@ -109,6 +130,101 @@ func loginHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	expirationTime := time.Now().Add(24 * time.Hour)
+	claims := &Claims{
+		Username: u.Username,
+		RegisteredClaims: jwt.RegisteredClaims{
+			ExpiresAt: jwt.NewNumericDate(expirationTime),
+		},
+	}
+
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	tokenString, err := token.SignedString(jwtKey)
+	if err != nil {
+		http.Error(w, "Error generating token", 500)
+		return
+	}
+
+	// Send the token back to the user
+	json.NewEncoder(w).Encode(map[string]string{"token": tokenString})
+
 	// 3. Success!
 	fmt.Fprintf(w, "Login successful! Welcome back, %s.", u.Username)
+}
+
+func AuthMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		authHeader := r.Header.Get("Authorization")
+		if authHeader == "" {
+			http.Error(w, "Missing token", http.StatusUnauthorized)
+			return
+		}
+
+		tokenString := strings.TrimPrefix(authHeader, "Bearer ")
+		claims := &Claims{}
+
+		token, err := jwt.ParseWithClaims(tokenString, claims, func(token *jwt.Token) (interface{}, error) {
+			return jwtKey, nil
+		})
+
+		if err != nil || !token.Valid {
+			http.Error(w, "Invalid token", http.StatusUnauthorized)
+			return
+		}
+
+		// Save the username into the "context" so the next function knows who this is
+		ctx := context.WithValue(r.Context(), "username", claims.Username)
+		next.ServeHTTP(w, r.WithContext(ctx))
+	})
+}
+
+func submitScoreHandler(w http.ResponseWriter, r *http.Request) {
+	// Get username from the "Security Guard's" notes
+	username := r.Context().Value("username").(string)
+
+	var s Score
+	json.NewDecoder(r.Body).Decode(&s)
+
+	query := `INSERT INTO scores (user_id, game_name, score) 
+              SELECT id, $1, $2 FROM users WHERE username = $3`
+
+	db.Exec(query, s.GameName, s.Score, username)
+	fmt.Fprintf(w, "Secure score %d saved for %s!", s.Score, username)
+}
+
+func leaderboardHandler(w http.ResponseWriter, r *http.Request) {
+	gameName := r.URL.Query().Get("game")
+	if gameName == "" {
+		http.Error(w, "Game name required", http.StatusBadRequest)
+		return
+	}
+
+	// The JOIN: Connecting scores to users to get the name
+	query := `
+		SELECT u.username, s.score 
+		FROM scores s 
+		JOIN users u ON s.user_id = u.id 
+		WHERE s.game_name = $1 
+		ORDER BY s.score DESC 
+		LIMIT 10`
+
+	rows, err := db.Query(query, gameName)
+	if err != nil {
+		http.Error(w, "Database error", http.StatusInternalServerError)
+		return
+	}
+	defer rows.Close()
+
+	var leaderboard []Score
+	for rows.Next() {
+		var ls Score
+		ls.GameName = gameName
+		if err := rows.Scan(&ls.Username, &ls.Score); err != nil {
+			continue
+		}
+		leaderboard = append(leaderboard, ls)
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(leaderboard)
 }
