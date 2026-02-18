@@ -1,0 +1,8 @@
+# Ignore the heavy stuff we don't need in the build context
+node_modules
+npm-debug.log
+build
+dist
+.git
+.gitignore
+docker-data

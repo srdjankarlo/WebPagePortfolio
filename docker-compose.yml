@@ -1,16 +1,18 @@
 
 services:
-  ## SKIP FRONTEND UNTIL WE HAVE REACT CODE READY
-  ## The Frontend (React)
-  #frontend:
-  #  # look for Dockerfile in fronted to figure out React setup
-  #  build: ./frontend
-  #  # so i can see website by typing localhost:3000 in browser
-  #  ports:
-  #    - "3000:3000"
-  #  # link the folder on my PC to the folder in the container
-  #  volumes:
-  #    - ./frontend:/app
+  # The Frontend (React)
+  frontend:
+    # look for Dockerfile in fronted to figure out React setup
+    build: ./frontend
+    # so i can see website by typing localhost:3000 in browser
+    ports:
+      - "3000:3000"
+    # link the folder on my PC to the folder in the container
+    volumes:
+      - ./frontend:/app
+    environment:
+      - WDS_SOCKET_PORT=0 # Helps with React auto-refresh in Docker
+      #- VITE_PORT=3000 # Tells Vite which port to use
 
   # The Backend (Go)
   backend:
