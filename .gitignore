@@ -10,13 +10,15 @@ docker-data/
 
 # --- Go Dependencies ---
 vendor/
+tmp/
+main
 
 # --- Frontend ---
-node_modules/
+frontend/node_modules/
 .pnp
 .pnp.js
-dist/
-build/
+frontend/dist/
+frontend/build/
 .DS_Store
 
 # --- IDEs ---

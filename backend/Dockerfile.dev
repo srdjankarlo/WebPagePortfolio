@@ -1,0 +1,23 @@
+# Use the official Go image
+FROM golang:1.24-alpine
+
+# Install git and other build tools (essential for go install to work on Alpine)
+RUN apk add --no-cache git gcc musl-dev
+
+# Set the working directory
+WORKDIR /app
+
+# Install Air (using the updated air-verse path)
+RUN go install github.com/air-verse/air@v1.52.3
+
+# Copy dependency files
+COPY go.mod go.sum ./
+RUN go mod download
+
+# Copy the rest of the code
+COPY . .
+
+EXPOSE 8080
+
+# Use the full path to the air binary
+CMD ["/go/bin/air"]
