@@ -55,3 +55,43 @@
   border-radius: 12px;
   border: 1px solid #f85149; /* Red border for attention */
 }
+
+.xo-game {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+}
+
+.xo-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 100px);
+  grid-template-rows: repeat(3, 100px);
+  gap: 10px;
+}
+
+.xo-square {
+  width: 100px;
+  height: 100px;
+  background: #161b22;
+  border: 2px solid #30363d;
+  color: var(--accent-blue);
+  font-size: 2.5rem;
+  font-weight: bold;
+  cursor: pointer;
+  border-radius: 8px;
+  transition: 0.2s;
+}
+
+.xo-square:hover {
+  background: #21262d;
+}
+
+.reset-btn {
+  padding: 10px 20px;
+  background: #238636;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+}
