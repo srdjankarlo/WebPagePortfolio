@@ -3,11 +3,13 @@ import axios from 'axios'; // We installed this earlier!
 import './App.css';
 
 function App() {
+  const [view, setView] = useState('HOME');
   const [user, setUser] = useState(null);
   const [showLogin, setShowLogin] = useState(false);
   const [credentials, setCredentials] = useState({ username: '', password: '' });
   const [showRegister, setShowRegister] = useState(false);
   const [regData, setRegData] = useState({ username: '', password: '', confirmPassword: '' });
+  const [selectedGame, setSelectedGame] = useState(null);
 
   // Add the Register handler:
   const handleRegister = async (e) => {
@@ -58,10 +60,10 @@ function App() {
     <div className="dashboard-container">
       <nav className="navbar">
         <div className="nav-links">
-          <span>HOME</span>
-          <span>GAMES</span>
-          <span>PROJECTS</span>
-          <span>TOOLS & APPS</span>
+          <span onClick={() => { setView('HOME'); setSelectedGame(null); }}>HOME</span>
+          <span onClick={() => setView('GAMES')}>GAMES</span>
+          <span onClick={() => setView('PROJECTS')}>PROJECTS</span>
+          <span onClick={() => setView('TOOLS')}>TOOLS & APPS</span>
         </div>
         <div className="auth-links">
           {user ? (
@@ -93,7 +95,7 @@ function App() {
                 />
               </div>
               <div className="input-group">
-                <label>Password:</label>
+                <label>Password: </label>
                 <input 
                   type="password" 
                   onChange={(e) => setCredentials({...credentials, password: e.target.value})} 
@@ -148,16 +150,46 @@ function App() {
         </div>
       )}
 
-      <main className="hero-section">
-        {user ? (
-          <h2 className="welcome-msg">
-            Welcome {user}. Now you can play games and your score will be on the scoreboard. 
-          </h2>
-        ) : (
-          <div className="intro-text">
+      <main className="content-area">
+        {view === 'HOME' && (
+          <div className="hero-section">
             <h1>Hi, I am Srdjan and this is my portfolio site.</h1>
             <p>I am a software engineer and I like to make stuff.</p>
-            <p>If you are not here to hire me and just bored, you have some games to play.</p>
+            <p>If you are bored, you have some games to play :3.</p>
+          </div>
+        )}
+
+        {view === 'GAMES' && (
+          <div className="games-layout">
+            {/* Sidebar - Visible to everyone */}
+            <aside className="games-sidebar">
+              <h3>Arcade</h3>
+              <button onClick={() => setSelectedGame('XO')}>X / O</button>
+              <button onClick={() => setSelectedGame('TETRIS')}>Tetris</button>
+              <button onClick={() => setSelectedGame('SNAKE')}>Snake</button>
+              <button onClick={() => setSelectedGame('BATTLESHIP')}>Battleships</button>
+              <hr />
+              <button onClick={() => setSelectedGame('SCOREBOARD')}>🏆 Scoreboard</button>
+            </aside>
+
+            {/* Game Window */}
+            <section className="game-window">
+              {!selectedGame ? (
+                <div className="placeholder-msg">Select a game to start!</div>
+              ) : !user && selectedGame !== 'SCOREBOARD' ? (
+                <div className="auth-notice">
+                  <h2>Hold on! 🛑</h2>
+                  <p>You need to be logged in to play and save your high scores.</p>
+                  <button onClick={() => setShowLogin(true)}>Login Now</button>
+                </div>
+              ) : (
+                <div className="game-container">
+                  {/* We will drop the actual game components here soon */}
+                  <h2>Currently Loading: {selectedGame}</h2>
+                  <p>Game logic coming in the next step...</p>
+                </div>
+              )}
+            </section>
           </div>
         )}
       </main>
