@@ -47,20 +47,19 @@ func main() {
 		log.Fatal(err)
 	}
 
-	// Route for Registration, Login...
+	// Register handlers
 	http.HandleFunc("/register", registerHandler)
 	http.HandleFunc("/login", loginHandler)
-	// Wrap the submit-score handler with the "Security Guard" (AuthMiddleware)
 	http.Handle("/submit-score", AuthMiddleware(http.HandlerFunc(submitScoreHandler)))
 	http.HandleFunc("/leaderboard", leaderboardHandler)
-
-	// Simple check route
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintf(w, "Backend is Live!")
 	})
 
 	fmt.Println("Server starting on port 8080...")
-	log.Fatal(http.ListenAndServe(":8080", nil))
+
+	// FIX 1: Pass http.DefaultServeMux so the middleware knows where to send requests
+	log.Fatal(http.ListenAndServe(":8080", enableCORS(http.DefaultServeMux)))
 }
 
 func registerHandler(w http.ResponseWriter, r *http.Request) {
@@ -70,25 +69,43 @@ func registerHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var u User
-	// 1. Decode the JSON sent by the user
-	err := json.NewDecoder(r.Body).Decode(&u)
-	if err != nil {
+	if err := json.NewDecoder(r.Body).Decode(&u); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
-	// 2. Hash the password
+	// FIX 2: Handle optional email for the database
+	var emailToInsert interface{}
+	if u.Email == "" {
+		emailToInsert = nil // This tells Postgres to store NULL, which allows multiple users to have no email
+	} else {
+		emailToInsert = u.Email
+	}
+
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(u.Password), bcrypt.DefaultCost)
 	if err != nil {
 		http.Error(w, "Error hashing password", http.StatusInternalServerError)
 		return
 	}
 
-	// 3. Insert into the Database
 	query := `INSERT INTO users (username, email, password_hash) VALUES ($1, $2, $3)`
-	_, err = db.Exec(query, u.Username, u.Email, hashedPassword)
+	_, err = db.Exec(query, u.Username, emailToInsert, hashedPassword)
 	if err != nil {
-		http.Error(w, "User already exists or database error", http.StatusConflict)
+		fmt.Println("DB Insert Error:", err)
+
+		// Check if the error is a duplicate key violation
+		if strings.Contains(err.Error(), "unique constraint") {
+			if strings.Contains(err.Error(), "username") {
+				http.Error(w, "Username already taken. Please choose another.", http.StatusConflict)
+				return
+			}
+			if strings.Contains(err.Error(), "email") {
+				http.Error(w, "Email is already registered.", http.StatusConflict)
+				return
+			}
+		}
+
+		http.Error(w, "Database error: Unable to complete registration.", http.StatusInternalServerError)
 		return
 	}
 
@@ -227,4 +244,21 @@ func leaderboardHandler(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(leaderboard)
+}
+
+func enableCORS(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Allow your React dev server
+		w.Header().Set("Access-Control-Allow-Origin", "http://localhost:3000")
+		w.Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS, PUT, DELETE")
+		w.Header().Set("Access-Control-Allow-Headers", "Accept, Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization")
+
+		// Handle the "preflight" request browser sends before the actual POST
+		if r.Method == "OPTIONS" {
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+
+		next.ServeHTTP(w, r)
+	})
 }
