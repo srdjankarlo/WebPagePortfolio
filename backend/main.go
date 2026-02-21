@@ -17,7 +17,7 @@ import (
 )
 
 // secret key for signing tokens - In production, this goes in a .env file!
-var jwtKey = []byte("my_ultra_secret_key")
+var jwtKey []byte
 
 type Claims struct {
 	Username string `json:"username"`
@@ -40,6 +40,15 @@ type Score struct {
 var db *sql.DB
 
 func main() {
+	// Get the secret from the environment
+	secret := os.Getenv("JWT_SECRET")
+
+	// Fallback for safety during local development if you forget to set it
+	if secret == "" {
+		log.Fatal("JWT_SECRET environment variable is not set")
+	}
+	jwtKey = []byte(secret)
+
 	dbURL := os.Getenv("DB_URL")
 	var err error
 	db, err = sql.Open("postgres", dbURL)
@@ -274,7 +283,7 @@ func leaderboardHandler(w http.ResponseWriter, r *http.Request) {
 func enableCORS(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Allow your React dev server
-		w.Header().Set("Access-Control-Allow-Origin", "http://localhost:3000")
+		w.Header().Set("Access-Control-Allow-Origin", "*")
 		w.Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS, PUT, DELETE")
 		w.Header().Set("Access-Control-Allow-Headers", "Accept, Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization")
 

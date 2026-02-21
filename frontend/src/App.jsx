@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import './App.css';
 
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080';
+
 // --- GOMOKU COMPONENT ---
 function TicTacToe() {
   const GRID_SIZE = 15;
@@ -46,7 +48,7 @@ function TicTacToe() {
     if (!token) return;
 
     try {
-      await axios.post('http://localhost:8080/submit-score', 
+      await axios.post(`${API_BASE_URL}/submit-score`, 
         { game_name: 'XO', score: scoreToSave },
         { headers: { Authorization: `Bearer ${token}` }}
       );
@@ -191,7 +193,7 @@ function App() {
 
   const fetchScores = async () => {
     try {
-      const response = await axios.get('http://localhost:8080/leaderboard');
+      const response = await axios.get(`${API_BASE_URL}/leaderboard`);
       setLeaderboard(response.data || []);
       setSelectedGame('SCOREBOARD');
     } catch (err) {
@@ -207,7 +209,7 @@ function App() {
     }
     try {
       // Added email to the payload
-      await axios.post('http://localhost:8080/register', { 
+      await axios.post(`${API_BASE_URL}/register`, { 
         username: regData.username, 
         email: regData.email, 
         password: regData.password 
@@ -222,7 +224,7 @@ function App() {
   const handleLogin = async (e) => {
     e.preventDefault();
     try {
-      const response = await axios.post('http://localhost:8080/login', credentials);
+      const response = await axios.post(`${API_BASE_URL}/login`, credentials);
       console.log("Full Server Response:", response.data); // DEBUG LOG
 
       // Ensure we are grabbing the 'token' field from the JSON object
