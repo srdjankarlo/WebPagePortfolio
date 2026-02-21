@@ -1,63 +1,204 @@
-import React, { useState } from 'react';
-import axios from 'axios'; // We installed this earlier!
+import React, { useState, useEffect } from 'react';
+import axios from 'axios';
 import './App.css';
 
+// --- GOMOKU COMPONENT ---
 function TicTacToe() {
-  const [board, setBoard] = useState(Array(9).fill(null));
-  const [xIsNext, setXIsNext] = useState(true);
+  const GRID_SIZE = 15;
+  const WIN_SEQUENCE = 5;
+  const [board, setBoard] = useState(Array(GRID_SIZE * GRID_SIZE).fill(null));
+  const [playerSymbol, setPlayerSymbol] = useState(Math.random() > 0.5 ? 'X' : 'O');
+  const [isXNext, setIsXNext] = useState(true);
+  const [sessionScore, setSessionScore] = useState(0);
+  const [gameOver, setGameOver] = useState(false);
 
-  const calculateWinner = (squares) => {
-    const lines = [
-      [0, 1, 2], [3, 4, 5], [6, 7, 8], // Rows
-      [0, 3, 6], [1, 4, 7], [2, 5, 8], // Cols
-      [0, 4, 8], [2, 4, 6],          // Diagonals
-    ];
-    for (let i = 0; i < lines.length; i++) {
-      const [a, b, c] = lines[i];
-      if (squares[a] && squares[a] === squares[b] && squares[a] === squares[c]) {
-        return squares[a];
+  useEffect(() => {
+    const isComputerTurn = (isXNext && playerSymbol === 'O') || (!isXNext && playerSymbol === 'X');
+    if (isComputerTurn && !gameOver) {
+      const timer = setTimeout(() => makeComputerMove(), 500);
+      return () => clearTimeout(timer);
+    }
+  }, [isXNext, gameOver]);
+
+  const checkWin = (squares, index, symbol) => {
+    const directions = [[1, 0], [0, 1], [1, 1], [1, -1]];
+    const r = Math.floor(index / GRID_SIZE);
+    const c = index % GRID_SIZE;
+    for (let [dr, dc] of directions) {
+      let count = 1;
+      for (let i = 1; i < WIN_SEQUENCE; i++) {
+        let nr = r + dr * i, nc = c + dc * i;
+        if (nr >= 0 && nr < GRID_SIZE && nc >= 0 && nc < GRID_SIZE && squares[nr * GRID_SIZE + nc] === symbol) count++;
+        else break;
+      }
+      for (let i = 1; i < WIN_SEQUENCE; i++) {
+        let nr = r - dr * i, nc = c - dc * i;
+        if (nr >= 0 && nr < GRID_SIZE && nc >= 0 && nc < GRID_SIZE && squares[nr * GRID_SIZE + nc] === symbol) count++;
+        else break;
+      }
+      if (count >= WIN_SEQUENCE) return true;
+    }
+    return false;
+  };
+
+  const submitWinToDB = async (scoreToSave) => {
+    const token = localStorage.getItem('token');
+    if (!token) return;
+
+    try {
+      await axios.post('http://localhost:8080/submit-score', 
+        { game_name: 'XO', score: scoreToSave },
+        { headers: { Authorization: `Bearer ${token}` }}
+      );
+    } catch (err) {
+      if (err.response?.status === 401) {
+        handleLogout();
       }
     }
-    return null;
   };
 
-  const handleClick = (i) => {
-    const winner = calculateWinner(board);
-    if (winner || board[i]) return;
-    const newBoard = board.slice();
-    newBoard[i] = xIsNext ? 'X' : 'O';
+  const executeMove = (i, symbol) => {
+    if (board[i] || gameOver) return;
+    const newBoard = [...board];
+    newBoard[i] = symbol;
     setBoard(newBoard);
-    setXIsNext(!xIsNext);
+    
+    if (checkWin(newBoard, i, symbol)) {
+      setGameOver(true);
+      if (symbol === playerSymbol) {
+        const newScore = sessionScore + 1;
+        setSessionScore(newScore);
+        // We only submit to DB when you WIN
+        submitWinToDB(newScore); 
+        alert(`You Win! Current Streak: ${newScore}`);
+      } else {
+        // Computer wins: Reset streak in UI, but DO NOT tell the DB.
+        // Your High Score in the DB remains safe!
+        setSessionScore(0); 
+        alert("Computer Wins! Your streak has been reset to 0, but your High Score is safe.");
+      }
+    } else {
+      setIsXNext(!isXNext);
+    }
   };
 
-  const winner = calculateWinner(board);
-  const status = winner ? `Winner: ${winner}` : `Next player: ${xIsNext ? 'X' : 'O'}`;
+  const makeComputerMove = () => {
+    const computerSymbol = playerSymbol === 'X' ? 'O' : 'X';
+    let bestScore = -1;
+    let bestMove = -1;
+    board.forEach((cell, i) => {
+      if (cell) return;
+      let score = evaluateSpot(i, computerSymbol) + (evaluateSpot(i, playerSymbol) * 1.1);
+      if (score > bestScore) {
+        bestScore = score;
+        bestMove = i;
+      }
+    });
+    if (bestMove !== -1) executeMove(bestMove, computerSymbol);
+  };
+
+  const evaluateSpot = (index, symbol) => {
+    const directions = [[1, 0], [0, 1], [1, 1], [1, -1]];
+    const r = Math.floor(index / GRID_SIZE);
+    const c = index % GRID_SIZE;
+    let totalValue = 0;
+    for (let [dr, dc] of directions) {
+      let count = 0;
+      for (let i = 1; i < 5; i++) {
+        let nr = r + dr * i, nc = c + dc * i;
+        if (nr >= 0 && nr < GRID_SIZE && nc >= 0 && nc < GRID_SIZE && board[nr * GRID_SIZE + nc] === symbol) count++;
+        else break;
+      }
+      for (let i = 1; i < 5; i++) {
+        let nr = r - dr * i, nc = c - dc * i;
+        if (nr >= 0 && nr < GRID_SIZE && nc >= 0 && nc < GRID_SIZE && board[nr * GRID_SIZE + nc] === symbol) count++;
+        else break;
+      }
+      totalValue += Math.pow(10, count); 
+    }
+    return totalValue;
+  };
 
   return (
-    <div className="xo-game">
-      <h3>{status}</h3>
-      <div className="xo-grid">
+    <div className="gomoku-container">
+      <div className="game-info">
+        <h3>Current Streak: <span className="score-badge">{sessionScore}</span></h3>
+        <p>You: <strong>{playerSymbol}</strong> | Turn: <strong>{isXNext ? 'X' : 'O'}</strong></p>
+        <p style={{fontSize: '0.8rem', color: '#888'}}>
+          Your high score is saved automatically when you win!
+        </p>
+      </div>
+      <div className="gomoku-grid">
         {board.map((val, i) => (
-          <button key={i} className="xo-square" onClick={() => handleClick(i)}>
+          <div key={i} className={`gomoku-square ${val || ''}`} onClick={() => !gameOver && executeMove(i, playerSymbol)}>
             {val}
-          </button>
+          </div>
         ))}
       </div>
-      <button className="reset-btn" onClick={() => setBoard(Array(9).fill(null))}>Restart Game</button>
+      <button className="reset-btn" onClick={() => {
+        setBoard(Array(GRID_SIZE * GRID_SIZE).fill(null));
+        setGameOver(false);
+        setIsXNext(true);
+        setPlayerSymbol(Math.random() > 0.5 ? 'X' : 'O');
+      }}>Restart Board</button>
     </div>
   );
 }
 
+// --- MAIN APP ---
 function App() {
+  // 1. ALL missing state variables restored
   const [view, setView] = useState('HOME');
   const [user, setUser] = useState(null);
-  const [showLogin, setShowLogin] = useState(false);
-  const [credentials, setCredentials] = useState({ username: '', password: '' });
-  const [showRegister, setShowRegister] = useState(false);
-  const [regData, setRegData] = useState({ username: '', password: '', confirmPassword: '' });
   const [selectedGame, setSelectedGame] = useState(null);
+  const [leaderboard, setLeaderboard] = useState([]);
+  const [showLogin, setShowLogin] = useState(false);
+  const [showRegister, setShowRegister] = useState(false);
+  
+  // States for forms
+  const [credentials, setCredentials] = useState({ username: '', password: '' });
+  const [regData, setRegData] = useState({ username: '', email: '', password: '', confirmPassword: '' });
 
-  // Add the Register handler:
+  // 2. Navigation & Modal Logic
+  const closeAllModals = () => {
+    setShowLogin(false);
+    setShowRegister(false);
+    setCredentials({ username: '', password: '' });
+    setRegData({ username: '', email: '', password: '', confirmPassword: '' });
+  };
+
+  const navigateTo = (newView) => {
+    setView(newView);
+    setSelectedGame(null);
+    closeAllModals(); 
+  };
+
+  const openLogin = () => {
+    closeAllModals();
+    setShowLogin(true);
+  };
+
+  const openRegister = () => {
+    closeAllModals();
+    setShowRegister(true);
+  };
+
+  useEffect(() => {
+    const savedUser = localStorage.getItem('username');
+    const token = localStorage.getItem('token');
+    if (savedUser && token) setUser(savedUser);
+  }, []);
+
+  const fetchScores = async () => {
+    try {
+      const response = await axios.get('http://localhost:8080/leaderboard');
+      setLeaderboard(response.data || []);
+      setSelectedGame('SCOREBOARD');
+    } catch (err) {
+      console.error("Leaderboard error:", err);
+    }
+  };
+
   const handleRegister = async (e) => {
     e.preventDefault();
     if (regData.password !== regData.confirmPassword) {
@@ -65,182 +206,167 @@ function App() {
       return;
     }
     try {
-      await axios.post('http://localhost:8080/register', {
-        username: regData.username,
-        password: regData.password
+      // Added email to the payload
+      await axios.post('http://localhost:8080/register', { 
+        username: regData.username, 
+        email: regData.email, 
+        password: regData.password 
       });
-      alert("Registration successful! Now you can login.");
-      setShowRegister(false);
+      alert("Registration successful!");
+      closeAllModals();
     } catch (err) {
-      // This logs the full error to F12 so you can see the structure
-      console.error("Registration Error:", err);
-
-      // If the backend sent a response, use that message
-      if (err.response && err.response.data) {
-          // Go's http.Error sends plain text, so err.response.data is that string
-          alert(err.response.data);
-      } else {
-          alert("Network error: Could not connect to the server.");
-      }
+      alert(err.response?.data || "Registration failed");
     }
   };
 
   const handleLogin = async (e) => {
     e.preventDefault();
     try {
-      // Connect to your Go backend!
       const response = await axios.post('http://localhost:8080/login', credentials);
+      console.log("Full Server Response:", response.data); // DEBUG LOG
+
+      // Ensure we are grabbing the 'token' field from the JSON object
       const token = response.data.token;
       
-      // Save the VIP wristband (JWT) in the browser
-      localStorage.setItem('token', token);
-      setUser(credentials.username);
-      setShowLogin(false);
-      alert("Logged in successfully!");
+      if (token) {
+        localStorage.setItem('token', token);
+        localStorage.setItem('username', credentials.username);
+        setUser(credentials.username);
+        closeAllModals();
+        console.log("Token saved! Value starts with:", token.substring(0, 10));
+      } else {
+        alert("Login successful, but server didn't send a token.");
+      }
     } catch (err) {
-      alert("Login failed! Check your credentials.");
+      console.error("Login Error:", err.response?.data || err.message);
+      alert("Invalid login.");
     }
+  };
+
+  const handleLogout = () => {
+    setUser(null);
+    localStorage.clear();
+    setSelectedGame(null);
+    setView('HOME');
+    // Clear the inputs so the next person doesn't see your password
+    setCredentials({ username: '', password: '' });
+    setRegData({ username: '', password: '', confirmPassword: '' });
+  };
+
+  const closeModals = () => {
+    setShowLogin(false);
+    setShowRegister(false);
+    // Clear fields when clicking 'Cancel'
+    setCredentials({ username: '', password: '' });
+    setRegData({ username: '', password: '', confirmPassword: '' });
   };
 
   return (
     <div className="dashboard-container">
       <nav className="navbar">
         <div className="nav-links">
-          <span onClick={() => { setView('HOME'); setSelectedGame(null); }}>HOME</span>
-          <span onClick={() => setView('GAMES')}>GAMES</span>
-          <span onClick={() => setView('PROJECTS')}>PROJECTS</span>
-          <span onClick={() => setView('TOOLS')}>TOOLS & APPS</span>
+          <span onClick={() => navigateTo('HOME')}>HOME</span>
+          <span onClick={() => navigateTo('GAMES')}>GAMES</span>
         </div>
         <div className="auth-links">
           {user ? (
             <div className="user-area">
-               <span>Welcome, {user}</span>
-               <button className="logout-btn" onClick={() => { setUser(null); localStorage.removeItem('token'); }}>Log Out</button>
+              <span>{user}</span>
+              <button className="logout-btn" onClick={handleLogout}>Log Out</button>
             </div>
           ) : (
             <>
-              <span onClick={() => setShowRegister(true)}>Register</span>
-              <span onClick={() => setShowLogin(true)}>Login</span>
+              <span onClick={openRegister}>Register</span>
+              <span onClick={openLogin}>Login</span>
             </>
           )}
         </div>
       </nav>
 
-      {/* The Login Modal as seen in your PPTX logic */}
-      {showLogin && (
-        <div className="modal-overlay">
-          <div className="modal-content">
-            <h2>Login</h2>
-            <form onSubmit={handleLogin}>
-              <div className="input-group">
-                <label>Username:</label>
-                <input 
-                  type="text" 
-                  onChange={(e) => setCredentials({...credentials, username: e.target.value})} 
-                  required 
-                />
-              </div>
-              <div className="input-group">
-                <label>Password: </label>
-                <input 
-                  type="password" 
-                  onChange={(e) => setCredentials({...credentials, password: e.target.value})} 
-                  required 
-                />
-              </div>
-              <div className="modal-actions">
-                <button type="submit">Log In</button>
-                <button type="button" onClick={() => setShowLogin(false)}>Cancel</button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Register Modal based on PPTX [cite: 7, 8, 9, 10] */}
-      {showRegister && (
-        <div className="modal-overlay">
-          <div className="modal-content">
-            <h2>Register</h2>
-            <form onSubmit={handleRegister}>
-              <div className="input-group">
-                <label>Username:</label>
-                <input 
-                  type="text" 
-                  onChange={(e) => setRegData({...regData, username: e.target.value})} 
-                  required 
-                />
-              </div>
-              <div className="input-group">
-                <label>Password:</label>
-                <input 
-                  type="password" 
-                  onChange={(e) => setRegData({...regData, password: e.target.value})} 
-                  required 
-                />
-              </div>
-              <div className="input-group">
-                <label>Confirm Password:</label>
-                <input 
-                  type="password" 
-                  onChange={(e) => setRegData({...regData, confirmPassword: e.target.value})} 
-                  required 
-                />
-              </div>
-              <div className="modal-actions">
-                <button type="submit">Register</button>
-                <button type="button" onClick={() => setShowRegister(false)}>Cancel</button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+      {showLogin && <LoginModal credentials={credentials} setCredentials={setCredentials} handleLogin={handleLogin} onClose={closeModals} />}
+      {showRegister && <RegisterModal regData={regData} setRegData={setRegData} handleRegister={handleRegister} onClose={closeModals} />}
 
       <main className="content-area">
-        {view === 'HOME' && (
-          <div className="hero-section">
-            <h1>Hi, I am Srdjan and this is my portfolio site.</h1>
-            <p>I am a software engineer and I like to make stuff.</p>
-            <p>If you are bored, you have some games to play :3.</p>
-          </div>
-        )}
-
+        {view === 'HOME' && <div className="hero-section"><h1>Hi, I am Srdjan</h1><p>Register and Login to play GAMES!</p></div>}
         {view === 'GAMES' && (
           <div className="games-layout">
-            {/* Sidebar - Visible to everyone */}
             <aside className="games-sidebar">
               <h3>Arcade</h3>
               <button onClick={() => setSelectedGame('XO')}>X / O</button>
-              <button onClick={() => setSelectedGame('TETRIS')}>Tetris</button>
               <button onClick={() => setSelectedGame('SNAKE')}>Snake</button>
-              <button onClick={() => setSelectedGame('BATTLESHIP')}>Battleships</button>
-              <hr />
-              <button onClick={() => setSelectedGame('SCOREBOARD')}>🏆 Scoreboard</button>
+              <button onClick={fetchScores}>🏆 Scoreboard</button>
             </aside>
-
-            {/* Game Window */}
             <section className="game-window">
               {!selectedGame ? (
-                <div className="placeholder-msg">Select a game to start!</div>
-              ) : !user && selectedGame !== 'SCOREBOARD' ? (
-                <div className="auth-notice">
-                  <h2>Hold on! 🛑</h2>
-                  <p>You need to be logged in to play and save your high scores.</p>
-                  <button onClick={() => setShowLogin(true)}>Login Now</button>
+                <div className="placeholder-msg">Select a game</div>
+              ) : selectedGame === 'SCOREBOARD' ? (
+                <div className="scoreboard-view">
+                  <h2>Global Hall of Fame</h2>
+                  <table>
+                    <thead><tr><th>Player</th><th>Game</th><th>Score</th></tr></thead>
+                    <tbody>
+                      {leaderboard.map((entry, i) => (
+                        <tr key={i}><td>{entry.username}</td><td>{entry.game_name}</td><td>{entry.score}</td></tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
+              ) : !user ? (
+                <div className="auth-notice"><h2>Login required</h2><button onClick={() => setShowLogin(true)}>Login</button></div>
               ) : (
                 <div className="game-container">
                   {selectedGame === 'XO' && <TicTacToe />}
-                              
-                  {/* {selectedGame === 'TETRIS' && <h2>Tetris Coming Soon...</h2>} */}
-                  {/* Add other games here later */}
-                  {selectedGame !== 'XO' && <h2>Game logic in work...</h2>}
+                  {selectedGame !== 'XO' && <h2>Coming soon...</h2>}
                 </div>
               )}
             </section>
           </div>
         )}
       </main>
+    </div>
+  );
+}
+
+// MODALS RESTORED
+function LoginModal({credentials, setCredentials, handleLogin, onClose}) {
+  return (
+    <div className="modal-overlay">
+      <div className="modal-content">
+        <h2>Login</h2>
+        <form onSubmit={handleLogin}>
+          <input type="text" placeholder="Username" value={credentials.username} onChange={e => setCredentials({...credentials, username: e.target.value})} required />
+          <input type="password" placeholder="Password" value={credentials.password} onChange={e => setCredentials({...credentials, password: e.target.value})} required />
+          <div className="modal-actions"><button type="submit">Log In</button><button type="button" onClick={onClose}>Cancel</button></div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+function RegisterModal({regData, setRegData, handleRegister, onClose}) {
+  return (
+    <div className="modal-overlay">
+      <div className="modal-content">
+        <h2>Register</h2>
+        <form onSubmit={handleRegister}>
+          <input type="text" placeholder="Username" value={regData.username} 
+            onChange={e => setRegData({...regData, username: e.target.value})} required />
+          
+          {/* New Email Field */}
+          <input type="email" placeholder="Email (Optional)" value={regData.email} 
+            onChange={e => setRegData({...regData, email: e.target.value})} />
+
+          <input type="password" placeholder="Password" value={regData.password} 
+            onChange={e => setRegData({...regData, password: e.target.value})} required />
+          <input type="password" placeholder="Confirm Password" value={regData.confirmPassword} 
+            onChange={e => setRegData({...regData, confirmPassword: e.target.value})} required />
+          
+          <div className="modal-actions">
+            <button type="submit">Register</button>
+            <button type="button" onClick={onClose}>Cancel</button>
+          </div>
+        </form>
+      </div>
     </div>
   );
 }

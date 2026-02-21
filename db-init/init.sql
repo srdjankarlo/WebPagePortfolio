@@ -11,7 +11,8 @@ CREATE TABLE IF NOT EXISTS users (
 CREATE TABLE IF NOT EXISTS scores (
     id INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     user_id INT REFERENCES users(id) ON DELETE CASCADE,
-    game_name VARCHAR(50) NOT NULL, -- e.g., 'Tetris', 'Snake', 'Battleships'
+    game_name VARCHAR(50) NOT NULL,
     score INT NOT NULL,
-    achieved_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    achieved_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CONSTRAINT unique_user_game UNIQUE (user_id, game_name)
 );

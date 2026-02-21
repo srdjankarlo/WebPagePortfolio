@@ -157,16 +157,14 @@ func loginHandler(w http.ResponseWriter, r *http.Request) {
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	tokenString, err := token.SignedString(jwtKey)
-	if err != nil {
-		http.Error(w, "Error generating token", 500)
-		return
-	}
 
+	// if err != nil {
+	// 	http.Error(w, "Error generating token", 500)
+	// 	return
+	// }
+	w.Header().Set("Content-Type", "application/json")
 	// Send the token back to the user
 	json.NewEncoder(w).Encode(map[string]string{"token": tokenString})
-
-	// 3. Success!
-	fmt.Fprintf(w, "Login successful! Welcome back, %s.", u.Username)
 }
 
 func AuthMiddleware(next http.Handler) http.Handler {
@@ -184,48 +182,74 @@ func AuthMiddleware(next http.Handler) http.Handler {
 			return jwtKey, nil
 		})
 
-		if err != nil || !token.Valid {
-			http.Error(w, "Invalid token", http.StatusUnauthorized)
+		if err != nil {
+			// THIS LOG WILL TELL US THE TRUTH
+			fmt.Printf("JWT Validation Error: %v\n", err)
+			http.Error(w, "Invalid token: "+err.Error(), http.StatusUnauthorized)
 			return
 		}
 
-		// Save the username into the "context" so the next function knows who this is
+		if !token.Valid {
+			http.Error(w, "Invalid token: token not valid", http.StatusUnauthorized)
+			return
+		}
+
 		ctx := context.WithValue(r.Context(), "username", claims.Username)
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }
 
 func submitScoreHandler(w http.ResponseWriter, r *http.Request) {
-	// Get username from the "Security Guard's" notes
 	username := r.Context().Value("username").(string)
-
 	var s Score
 	json.NewDecoder(r.Body).Decode(&s)
 
-	query := `INSERT INTO scores (user_id, game_name, score) 
-              SELECT id, $1, $2 FROM users WHERE username = $3`
+	// Only update if the incoming score is GREATER than what we already have
+	query := `
+        INSERT INTO scores (user_id, game_name, score) 
+        SELECT id, $1, $2 FROM users WHERE username = $3
+        ON CONFLICT (user_id, game_name) 
+        DO UPDATE SET score = EXCLUDED.score
+        WHERE EXCLUDED.score > scores.score;`
 
-	db.Exec(query, s.GameName, s.Score, username)
-	fmt.Fprintf(w, "Secure score %d saved for %s!", s.Score, username)
+	result, err := db.Exec(query, s.GameName, s.Score, username)
+	if err != nil {
+		fmt.Println("Upsert Error:", err)
+		http.Error(w, "Database error", 500)
+		return
+	}
+
+	rows, _ := result.RowsAffected()
+	if rows == 0 {
+		fmt.Println("Score not updated because it wasn't a new High Score.")
+	}
+
+	fmt.Fprintf(w, "Score processed")
 }
 
 func leaderboardHandler(w http.ResponseWriter, r *http.Request) {
 	gameName := r.URL.Query().Get("game")
-	if gameName == "" {
-		http.Error(w, "Game name required", http.StatusBadRequest)
-		return
+
+	var query string
+	var rows *sql.Rows
+	var err error
+
+	if gameName != "" {
+		// Specific game
+		query = `SELECT u.username, s.game_name, s.score FROM scores s 
+                 JOIN users u ON s.user_id = u.id WHERE s.game_name = $1 
+                 WHERE 	s.score > 0
+				 ORDER BY s.score DESC LIMIT 20`
+		rows, err = db.Query(query, gameName)
+	} else {
+		// Global Leaderboard (Every game)
+		query = `SELECT u.username, s.game_name, s.score FROM scores s 
+                 JOIN users u ON s.user_id = u.id 
+                 WHERE 	s.score > 0
+				 ORDER BY s.score DESC LIMIT 20`
+		rows, err = db.Query(query)
 	}
 
-	// The JOIN: Connecting scores to users to get the name
-	query := `
-		SELECT u.username, s.score 
-		FROM scores s 
-		JOIN users u ON s.user_id = u.id 
-		WHERE s.game_name = $1 
-		ORDER BY s.score DESC 
-		LIMIT 10`
-
-	rows, err := db.Query(query, gameName)
 	if err != nil {
 		http.Error(w, "Database error", http.StatusInternalServerError)
 		return
@@ -235,8 +259,9 @@ func leaderboardHandler(w http.ResponseWriter, r *http.Request) {
 	var leaderboard []Score
 	for rows.Next() {
 		var ls Score
-		ls.GameName = gameName
-		if err := rows.Scan(&ls.Username, &ls.Score); err != nil {
+		// You must scan all 3 columns returned by the query
+		if err := rows.Scan(&ls.Username, &ls.GameName, &ls.Score); err != nil {
+			fmt.Println("Scan error:", err)
 			continue
 		}
 		leaderboard = append(leaderboard, ls)
