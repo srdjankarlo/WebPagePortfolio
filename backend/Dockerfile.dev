@@ -1,23 +1,17 @@
-# Use the official Go image
 FROM golang:1.24-alpine
 
-# Install git and other build tools (essential for go install to work on Alpine)
-RUN apk add --no-cache git gcc musl-dev
+# Install Delve for debugging
+RUN go install github.com/go-delve/delve/cmd/dlv@latest
 
-# Set the working directory
 WORKDIR /app
 
-# Install Air (using the updated air-verse path)
-RUN go install github.com/air-verse/air@v1.52.3
-
-# Copy dependency files
-COPY go.mod go.sum ./
-RUN go mod download
-
-# Copy the rest of the code
 COPY . .
 
-EXPOSE 8080
+# Expose 8080 for the app, 40000 for the debugger
+EXPOSE 8080 40000
 
-# Use the full path to the air binary
-CMD ["/go/bin/air"]
+# Start the app through Delve
+# --headless: run without a UI
+# --continue: start the app immediately
+# --accept-multiclient: allow VS Code to connect/disconnect
+CMD ["dlv", "--listen=:40000", "--headless=true", "--api-version=2", "--accept-multiclient", "debug", "--continue", "--accept-multiclient", "./"]

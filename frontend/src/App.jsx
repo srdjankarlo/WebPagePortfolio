@@ -289,7 +289,7 @@ function App() {
       {showRegister && <RegisterModal regData={regData} setRegData={setRegData} handleRegister={handleRegister} onClose={closeModals} />}
 
       <main className="content-area">
-        {view === 'HOME' && <div className="hero-section"><h1>Hi, I am Srdjan</h1><p>Register and Login to play GAMES!</p></div>}
+        {view === 'HOME' && <div className="hero-section"><h1>Hi, I am Srdjan :3</h1><p>Register and Login to play GAMES!</p></div>}
         {view === 'GAMES' && (
           <div className="games-layout">
             <aside className="games-sidebar">

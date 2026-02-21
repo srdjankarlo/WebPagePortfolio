@@ -16,6 +16,9 @@ services:
       dockerfile: Dockerfile.dev
     ports:
       - "8080:8080"
+      - "40000:40000" # Add this line
+    security_opt:
+      - "seccomp:unconfined" # Allows the debugger to control the process
     volumes:
       - ./backend:/app
     environment:
