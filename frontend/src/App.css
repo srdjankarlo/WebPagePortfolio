@@ -22,20 +22,29 @@
 }
 
 .games-sidebar button {
-  background: transparent;
-  color: #c9d1d9;
-  border: 1px solid transparent;
+  width: 100%;
   padding: 12px;
+  margin-bottom: 8px;
+  border: none;
+  background: transparent;
+  color: #888;
   text-align: left;
-  border-radius: 6px;
   cursor: pointer;
-  transition: 0.2s;
-  font-size: 1rem;
+  transition: all 0.3s ease;
+  border-radius: 6px;
 }
 
 .games-sidebar button:hover {
-  background: #21262d;
-  border-color: #8b949e;
+  background: #2a2a35;
+  color: #fff;
+}
+
+.games-sidebar button.active-sidebar-btn {
+  background: #2a2a35; /* Same as hover */
+  color: #00aaff;      /* A highlight color to stand out */
+  font-weight: bold;
+  border-left: 4px solid #00aaff; /* Optional: adds a nice vertical line indicators */
+  padding-left: 8px; /* Adjust padding to account for the border-left */
 }
 
 .game-window {
@@ -150,5 +159,149 @@
 /* Highlight the Game column */
 .scoreboard-view td:nth-child(2) {
   color: #58a6ff;
+  font-weight: bold;
+}
+
+/* --- NAVBAR FIX FOR MOBILE --- */
+.nav-links {
+  display: flex;
+  gap: 20px;
+  /* This prevents text from wrapping to the next line */
+  white-space: nowrap; 
+  /* Allows scrolling on very small screens instead of breaking the layout */
+  overflow-x: auto; 
+  padding-bottom: 5px; /* space for a scrollbar if needed */
+}
+
+/* Hide scrollbar for cleaner look */
+.nav-links::-webkit-scrollbar {
+  display: none;
+}
+
+/* --- HOME PAGE SPLIT LAYOUT --- */
+.home-layout {
+  display: flex;
+  flex-direction: row;
+  justify-content: center;
+  align-items: center;
+  gap: 50px;
+  width: 100%;
+  max-width: 1000px;
+  margin: 0 auto;
+  padding: 40px 20px;
+}
+
+/* On phones, stack them vertically */
+@media (max-width: 768px) {
+  .home-layout {
+    flex-direction: column;
+    gap: 30px;
+  }
+}
+
+.hero-section {
+  flex: 1;
+  text-align: left;
+}
+
+/* --- EMBEDDED AUTH SECTION --- */
+.home-auth-section {
+  flex: 1;
+  background: #1e1e24; /* Or whatever dark card background you prefer */
+  padding: 30px;
+  border-radius: 12px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+  min-width: 320px;
+}
+
+.auth-toggle {
+  display: flex;
+  margin-bottom: 20px;
+  border-radius: 8px;
+  background: #2a2a35;
+  overflow: hidden;
+}
+
+.auth-toggle button {
+  flex: 1;
+  padding: 10px 0;
+  background: transparent;
+  border: none;
+  color: #888;
+  cursor: pointer;
+  font-weight: bold;
+  transition: 0.3s;
+}
+
+.auth-toggle button.active {
+  background: #4caf50; /* Match your theme color */
+  color: white;
+}
+
+.embedded-auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: 15px; /* This stacks inputs exactly one below the other */
+}
+
+.embedded-auth-form h2 {
+  margin-top: 0;
+  margin-bottom: 10px;
+  color: #fff;
+}
+
+.embedded-auth-form input {
+  padding: 12px;
+  border-radius: 6px;
+  border: 1px solid #444;
+  background: #2a2a35;
+  color: white;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.form-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.form-actions button {
+  flex: 1;
+  padding: 12px;
+  border-radius: 6px;
+  border: none;
+  cursor: pointer;
+  font-weight: bold;
+}
+
+.primary-btn {
+  background: #4caf50;
+  color: white;
+}
+
+.secondary-btn {
+  background: #555;
+  color: white;
+}
+
+/* Base style for nav links */
+.nav-links span {
+  cursor: pointer;
+  padding: 5px 10px;
+  color: #888; /* Dim color for inactive links */
+  transition: color 0.3s ease, border-bottom 0.3s ease;
+  font-weight: 500;
+}
+
+/* Hover effect */
+.nav-links span:hover {
+  color: #fff;
+}
+
+/* THE MAGIC: Active link style */
+.nav-links span.active-nav {
+  color: #00aaff; /* Your desired blue */
+  border-bottom: 2px solid #00aaff; /* Optional: adds a blue line under the text */
   font-weight: bold;
 }

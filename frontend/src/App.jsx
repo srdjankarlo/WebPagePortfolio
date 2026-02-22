@@ -54,7 +54,9 @@ function TicTacToe() {
       );
     } catch (err) {
       if (err.response?.status === 401) {
-        handleLogout();
+        // handleLogout();
+        // We will pass handleLogout down if needed, but for now we catch it
+        console.error("Session expired");
       }
     }
   };
@@ -70,12 +72,9 @@ function TicTacToe() {
       if (symbol === playerSymbol) {
         const newScore = sessionScore + 1;
         setSessionScore(newScore);
-        // We only submit to DB when you WIN
         submitWinToDB(newScore); 
         alert(`You Win! Current Streak: ${newScore}`);
       } else {
-        // Computer wins: Reset streak in UI, but DO NOT tell the DB.
-        // Your High Score in the DB remains safe!
         setSessionScore(0); 
         alert("Computer Wins! Your streak has been reset to 0, but your High Score is safe.");
       }
@@ -149,40 +148,21 @@ function TicTacToe() {
 
 // --- MAIN APP ---
 function App() {
-  // 1. ALL missing state variables restored
   const [view, setView] = useState('HOME');
   const [user, setUser] = useState(null);
   const [selectedGame, setSelectedGame] = useState(null);
   const [leaderboard, setLeaderboard] = useState([]);
-  const [showLogin, setShowLogin] = useState(false);
-  const [showRegister, setShowRegister] = useState(false);
   
-  // States for forms
-  const [credentials, setCredentials] = useState({ username: '', password: '' });
-  const [regData, setRegData] = useState({ username: '', email: '', password: '', confirmPassword: '' });
+  // State for HOME page auth section ('LOGIN' or 'REGISTER')
+  const [authMode, setAuthMode] = useState('LOGIN'); 
 
-  // 2. Navigation & Modal Logic
-  const closeAllModals = () => {
-    setShowLogin(false);
-    setShowRegister(false);
-    setCredentials({ username: '', password: '' });
-    setRegData({ username: '', email: '', password: '', confirmPassword: '' });
-  };
+  // States for forms
+  const [credentials, setCredentials] = useState({ identifier: '', password: '' });
+  const [regData, setRegData] = useState({ username: '', email: '', password: '', confirmPassword: '' });
 
   const navigateTo = (newView) => {
     setView(newView);
     setSelectedGame(null);
-    closeAllModals(); 
-  };
-
-  const openLogin = () => {
-    closeAllModals();
-    setShowLogin(true);
-  };
-
-  const openRegister = () => {
-    closeAllModals();
-    setShowRegister(true);
   };
 
   useEffect(() => {
@@ -208,14 +188,28 @@ function App() {
       return;
     }
     try {
-      // Added email to the payload
+      // 1. Register
       await axios.post(`${API_BASE_URL}/register`, { 
         username: regData.username, 
         email: regData.email, 
         password: regData.password 
       });
-      alert("Registration successful!");
-      closeAllModals();
+      
+      // 2. Auto-Login immediately after successful registration
+      const loginRes = await axios.post(`${API_BASE_URL}/login`, {
+        username: regData.username,
+        password: regData.password
+      });
+
+      const token = loginRes.data.token;
+      const actualUsername = loginRes.data.username; // Get the real username
+
+      if (token && actualUsername) {
+        localStorage.setItem('token', token);
+        localStorage.setItem('username', actualUsername);
+        setUser(actualUsername);
+        setRegData({ username: '', email: '', password: '', confirmPassword: '' });
+      }
     } catch (err) {
       alert(err.response?.data || "Registration failed");
     }
@@ -224,23 +218,20 @@ function App() {
   const handleLogin = async (e) => {
     e.preventDefault();
     try {
-      const response = await axios.post(`${API_BASE_URL}/login`, credentials);
-      console.log("Full Server Response:", response.data); // DEBUG LOG
+      const response = await axios.post(`${API_BASE_URL}/login`, {
+        username: credentials.identifier,
+        password: credentials.password
+      });
 
-      // Ensure we are grabbing the 'token' field from the JSON object
-      const token = response.data.token;
+      const { token, username } = response.data; // Get BOTH from response
       
-      if (token) {
+      if (token && username) {
         localStorage.setItem('token', token);
-        localStorage.setItem('username', credentials.username);
-        setUser(credentials.username);
-        closeAllModals();
-        console.log("Token saved! Value starts with:", token.substring(0, 10));
-      } else {
-        alert("Login successful, but server didn't send a token.");
+        localStorage.setItem('username', username); // Save the REAL username
+        setUser(username);
+        setCredentials({ identifier: '', password: '' });
       }
     } catch (err) {
-      console.error("Login Error:", err.response?.data || err.message);
       alert("Invalid login.");
     }
   };
@@ -250,53 +241,94 @@ function App() {
     localStorage.clear();
     setSelectedGame(null);
     setView('HOME');
-    // Clear the inputs so the next person doesn't see your password
-    setCredentials({ username: '', password: '' });
-    setRegData({ username: '', password: '', confirmPassword: '' });
+    setCredentials({ identifier: '', password: '' });
+    setRegData({ username: '', email: '', password: '', confirmPassword: '' });
   };
 
-  const closeModals = () => {
-    setShowLogin(false);
-    setShowRegister(false);
-    // Clear fields when clicking 'Cancel'
-    setCredentials({ username: '', password: '' });
-    setRegData({ username: '', password: '', confirmPassword: '' });
+  const cancelAuth = () => {
+    // Clears the inputs
+    setCredentials({ identifier: '', password: '' });
+    setRegData({ username: '', email: '', password: '', confirmPassword: '' });
   };
 
   return (
     <div className="dashboard-container">
       <nav className="navbar">
         <div className="nav-links">
-          <span onClick={() => navigateTo('HOME')}>HOME</span>
-          <span onClick={() => navigateTo('GAMES')}>GAMES</span>
+          <span onClick={() => navigateTo('HOME')} className={view === 'HOME' ? 'active-nav' : ''}> HOME</span>
+          <span onClick={() => navigateTo('GAMES')} className={view === 'GAMES' ? 'active-nav' : ''}> GAMES</span>
+          <span onClick={() => navigateTo('PROJECTS')} className={view === 'PROJECTS' ? 'active-nav' : ''}> PROJECTS</span>
+          <span onClick={() => navigateTo('TOOLS')} className={view === 'TOOLS' ? 'active-nav' : ''}> TOOLS & APP's</span>
         </div>
+        
         <div className="auth-links">
-          {user ? (
+          {user && (
             <div className="user-area">
               <span>{user}</span>
               <button className="logout-btn" onClick={handleLogout}>Log Out</button>
             </div>
-          ) : (
-            <>
-              <span onClick={openRegister}>Register</span>
-              <span onClick={openLogin}>Login</span>
-            </>
           )}
         </div>
       </nav>
 
-      {showLogin && <LoginModal credentials={credentials} setCredentials={setCredentials} handleLogin={handleLogin} onClose={closeModals} />}
-      {showRegister && <RegisterModal regData={regData} setRegData={setRegData} handleRegister={handleRegister} onClose={closeModals} />}
-
       <main className="content-area">
-        {view === 'HOME' && <div className="hero-section"><h1>Hi, I am Srdjan :3</h1><p>Register and Login to play GAMES!</p></div>}
+        {view === 'HOME' && (
+          <div className="home-layout">
+            <div className="hero-section">
+              <h1>Hi, I am Srdjan :3</h1>
+              {user ? (
+                <p>Welcome back! Head over to the GAMES tab to play.</p>
+              ) : (
+                <p>Register or Login to start playing games and saving your high scores!</p>
+              )}
+            </div>
+
+            {/* Embedded Auth Section on the HOME page */}
+            {!user && (
+              <div className="home-auth-section">
+                <div className="auth-toggle">
+                  <button className={authMode === 'LOGIN' ? 'active' : ''} onClick={() => setAuthMode('LOGIN')}>Login</button>
+                  <button className={authMode === 'REGISTER' ? 'active' : ''} onClick={() => setAuthMode('REGISTER')}>Register</button>
+                </div>
+
+                {authMode === 'LOGIN' ? (
+                  <form className="embedded-auth-form" onSubmit={handleLogin}>
+                    <h2>Login</h2>
+                    <input type="text" placeholder="Username or Email" value={credentials.identifier} onChange={e => setCredentials({...credentials, identifier: e.target.value})} required />
+                    <input type="password" placeholder="Password" value={credentials.password} onChange={e => setCredentials({...credentials, password: e.target.value})} required />
+                    <div className="form-actions">
+                      <button type="submit" className="primary-btn">Log In</button>
+                      <button type="button" className="secondary-btn" onClick={cancelAuth}>Cancel</button>
+                    </div>
+                  </form>
+                ) : (
+                  <form className="embedded-auth-form" onSubmit={handleRegister}>
+                    <h2>Register</h2>
+                    <input type="text" placeholder="Username" value={regData.username} onChange={e => setRegData({...regData, username: e.target.value})} required />
+                    <input type="email" placeholder="Email (Optional)" value={regData.email} onChange={e => setRegData({...regData, email: e.target.value})} />
+                    <input type="password" placeholder="Password" value={regData.password} onChange={e => setRegData({...regData, password: e.target.value})} required />
+                    <input type="password" placeholder="Confirm Password" value={regData.confirmPassword} onChange={e => setRegData({...regData, confirmPassword: e.target.value})} required />
+                    <div className="form-actions">
+                      <button type="submit" className="primary-btn">Register</button>
+                      <button type="button" className="secondary-btn" onClick={cancelAuth}>Cancel</button>
+                    </div>
+                  </form>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
         {view === 'GAMES' && (
           <div className="games-layout">
             <aside className="games-sidebar">
               <h3>Arcade</h3>
-              <button onClick={() => setSelectedGame('XO')}>X / O</button>
-              <button onClick={() => setSelectedGame('SNAKE')}>Snake</button>
-              <button onClick={fetchScores}>🏆 Scoreboard</button>
+              <button className={selectedGame === 'XO' ? 'active-sidebar-btn': ''} onClick={() => setSelectedGame('XO')}>X / O</button>
+              <button className={selectedGame === 'Snake' ? 'active-sidebar-btn': ''} onClick={() => setSelectedGame('Snake')}>Snake</button>
+              <button className={selectedGame === 'Battleships' ? 'active-sidebar-btn': ''} onClick={() => setSelectedGame('Battleships')}>Battleships</button>
+              <button className={selectedGame === 'Tetris' ? 'active-sidebar-btn': ''} onClick={() => setSelectedGame('Tetris')}>Tetris</button>
+              <button className={selectedGame === '3D Car Drive' ? 'active-sidebar-btn': ''} onClick={() => setSelectedGame('3D Car Drive')}>3D Car Drive</button>
+              <button className={selectedGame === 'XO' ? 'active-sidebar-btn': ''} onClick={fetchScores}>🏆 Scoreboard</button>
             </aside>
             <section className="game-window">
               {!selectedGame ? (
@@ -314,7 +346,10 @@ function App() {
                   </table>
                 </div>
               ) : !user ? (
-                <div className="auth-notice"><h2>Login required</h2><button onClick={() => setShowLogin(true)}>Login</button></div>
+                <div className="auth-notice">
+                  <h2>Login required</h2>
+                  <button onClick={() => navigateTo('HOME')}>Go to Login</button>
+                </div>
               ) : (
                 <div className="game-container">
                   {selectedGame === 'XO' && <TicTacToe />}
@@ -325,50 +360,6 @@ function App() {
           </div>
         )}
       </main>
-    </div>
-  );
-}
-
-// MODALS RESTORED
-function LoginModal({credentials, setCredentials, handleLogin, onClose}) {
-  return (
-    <div className="modal-overlay">
-      <div className="modal-content">
-        <h2>Login</h2>
-        <form onSubmit={handleLogin}>
-          <input type="text" placeholder="Username" value={credentials.username} onChange={e => setCredentials({...credentials, username: e.target.value})} required />
-          <input type="password" placeholder="Password" value={credentials.password} onChange={e => setCredentials({...credentials, password: e.target.value})} required />
-          <div className="modal-actions"><button type="submit">Log In</button><button type="button" onClick={onClose}>Cancel</button></div>
-        </form>
-      </div>
-    </div>
-  );
-}
-
-function RegisterModal({regData, setRegData, handleRegister, onClose}) {
-  return (
-    <div className="modal-overlay">
-      <div className="modal-content">
-        <h2>Register</h2>
-        <form onSubmit={handleRegister}>
-          <input type="text" placeholder="Username" value={regData.username} 
-            onChange={e => setRegData({...regData, username: e.target.value})} required />
-          
-          {/* New Email Field */}
-          <input type="email" placeholder="Email (Optional)" value={regData.email} 
-            onChange={e => setRegData({...regData, email: e.target.value})} />
-
-          <input type="password" placeholder="Password" value={regData.password} 
-            onChange={e => setRegData({...regData, password: e.target.value})} required />
-          <input type="password" placeholder="Confirm Password" value={regData.confirmPassword} 
-            onChange={e => setRegData({...regData, confirmPassword: e.target.value})} required />
-          
-          <div className="modal-actions">
-            <button type="submit">Register</button>
-            <button type="button" onClick={onClose}>Cancel</button>
-          </div>
-        </form>
-      </div>
     </div>
   );
 }

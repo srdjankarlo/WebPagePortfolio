@@ -135,10 +135,14 @@ func loginHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 1. Look up the user in the database
+	// 1. Look up the user in the database by Username OR Email
+	var actualUsername string
 	var storedHash string
-	query := `SELECT password_hash FROM users WHERE username = $1`
-	err = db.QueryRow(query, u.Username).Scan(&storedHash)
+
+	// We select BOTH the username and the password_hash.
+	// This way, if they logged in with an email, we still get their actual username for the JWT token.
+	query := `SELECT username, password_hash FROM users WHERE username = $1 OR email = $1`
+	err = db.QueryRow(query, u.Username).Scan(&actualUsername, &storedHash)
 
 	if err == sql.ErrNoRows {
 		http.Error(w, "User not found", http.StatusUnauthorized)
@@ -158,7 +162,8 @@ func loginHandler(w http.ResponseWriter, r *http.Request) {
 
 	expirationTime := time.Now().Add(24 * time.Hour)
 	claims := &Claims{
-		Username: u.Username,
+		// Use actualUsername from the DB, NOT u.Username (which might be an email address)
+		Username: actualUsername,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(expirationTime),
 		},
@@ -167,13 +172,20 @@ func loginHandler(w http.ResponseWriter, r *http.Request) {
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	tokenString, err := token.SignedString(jwtKey)
 
-	// if err != nil {
-	// 	http.Error(w, "Error generating token", 500)
-	// 	return
-	// }
+	if err != nil {
+		http.Error(w, "Error generating token", 500)
+		return
+	}
+
 	w.Header().Set("Content-Type", "application/json")
 	// Send the token back to the user
-	json.NewEncoder(w).Encode(map[string]string{"token": tokenString})
+	// CREATE A RESPONSE STRUCT
+	response := map[string]string{
+		"token":    tokenString,
+		"username": actualUsername, // This is the real username from the DB!
+	}
+
+	json.NewEncoder(w).Encode(response)
 }
 
 func AuthMiddleware(next http.Handler) http.Handler {
