@@ -328,7 +328,7 @@ function App() {
               <button className={selectedGame === 'Battleships' ? 'active-sidebar-btn': ''} onClick={() => setSelectedGame('Battleships')}>Battleships</button>
               <button className={selectedGame === 'Tetris' ? 'active-sidebar-btn': ''} onClick={() => setSelectedGame('Tetris')}>Tetris</button>
               <button className={selectedGame === '3D Car Drive' ? 'active-sidebar-btn': ''} onClick={() => setSelectedGame('3D Car Drive')}>3D Car Drive</button>
-              <button className={selectedGame === 'XO' ? 'active-sidebar-btn': ''} onClick={fetchScores}>🏆 Scoreboard</button>
+              <button className={selectedGame === 'SCOREBOARD' ? 'active-sidebar-btn': ''} onClick={fetchScores}>🏆 Scoreboard</button>
             </aside>
             <section className="game-window">
               {!selectedGame ? (
