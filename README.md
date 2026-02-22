@@ -33,9 +33,9 @@ cd WebPagePortfolio
 
 2.	**Configure Environment Variables:**
 Copy .env.example and rename it to .env.
-Replace the placeholder values with your local IP address and secure passwords.
-MY_IP=192.168.x.x
-MY_JWT_KEY=your_secure_random_key
+Replace the placeholder values with your local IP address and secure passwords.  
+MY_IP=192.168.x.x  
+MY_JWT_KEY=your_secure_random_key  
 DB_PASSWORD=your_secure_password
 
 3.	**Launch the Application:**
@@ -46,11 +46,11 @@ Open your browser and navigate to:
 * Local: http://localhost:3000
 * Mobile: http://<YOUR_IP>:3000
 
-**Debugging**
+**Debugging**  
 This project is configured for remote debugging using VS Code and Delve.
 Ensure containers are running.
 Open the project root in VS Code.
 Set a breakpoint in your Go or React code.
 Navigate to the **Run & Debug** panel.
-Select **Connect to Go Backend (Docker)** or **Launch Chrome for React Frontend** and hit Play.
+Select **Connect to Go Backend (Docker)** or **Launch Chrome for React Frontend** and hit Play.  
 Note: If backend breakpoints remain "Unbound" (gray), verify that the substitutePath in .vscode/launch.json perfectly matches your local absolute path to the /backend directory.
