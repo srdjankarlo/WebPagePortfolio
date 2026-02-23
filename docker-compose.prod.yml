@@ -3,28 +3,36 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile.prod
+      args:
+        # Bake the local backend URL into the React build for testing
+        - VITE_API_URL=http://localhost:8080
     ports:
-      - "80:80"
-    depends_on:
-      - backend
+      # Map your PC's port 3000 to Nginx's port 80
+      - "3000:80" 
 
   backend:
     build:
       context: ./backend
       dockerfile: Dockerfile.prod
+    ports:
+      - "8080:8080"
     environment:
-      - DB_URL=postgres://user:pass@db:5432/portfolio?sslmode=disable
+      - DB_URL=postgres://${DB_USER}:${DB_PASSWORD}@db:5432/${DB_NAME}?sslmode=disable
+      - JWT_SECRET=${MY_JWT_KEY}
     depends_on:
       - db
 
   db:
     image: postgres:15
     environment:
-      - POSTGRES_USER=user
-      - POSTGRES_PASSWORD=pass
-      - POSTGRES_DB=portfolio
+      - POSTGRES_USER=${DB_USER}
+      - POSTGRES_PASSWORD=${DB_PASSWORD}
+      - POSTGRES_DB=${DB_NAME}
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      - ./db-init/init.sql:/docker-entrypoint-initdb.d/init.sql
+    ports:
+      - "5432:5432"
 
 volumes:
   postgres_data:
