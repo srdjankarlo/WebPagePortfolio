@@ -222,6 +222,22 @@ function App() {
             </section>
           </div>
         )}
+
+        {view == `PROJECTS` && (
+          <div className='home-layout'>
+            <div className="hero-section">
+              <h1>PROJECTS under construction...</h1>
+            </div>
+          </div>
+        )}
+
+        {view == `TOOLS` && (
+          <div className='home-layout'>
+            <div className="hero-section">
+              <h1>TOOLS under construction...</h1>
+            </div>
+          </div>
+        )}
       </main>
     </div>
   );
