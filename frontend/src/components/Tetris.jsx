@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import axios from 'axios';
 
 const COLS = 10;
@@ -34,7 +34,12 @@ export default function Tetris() {
     const pieceRef = useRef(activePiece);
     const nextPieceRef = useRef(nextPiece); // NEW REF
     const scoreRef = useRef(score);
+    const gameOverRef = useRef(gameOver);
+    const isPausedRef = useRef(isPaused);
 
+    useEffect(() => { isPausedRef.current = isPaused; }, [isPaused]);
+    // Sync it whenever gameOver state changes
+    useEffect(() => { gameOverRef.current = gameOver; }, [gameOver]);
     useEffect(() => { gridRef.current = grid; }, [grid]);
     useEffect(() => { pieceRef.current = activePiece; }, [activePiece]);
     useEffect(() => { nextPieceRef.current = nextPiece; }, [nextPiece]);
@@ -83,13 +88,17 @@ export default function Tetris() {
     const rotate = (matrix) => matrix[0].map((_, i) => matrix.map(row => row[i]).reverse());
 
     const handleMove = (dirX, dirY) => {
-        if (!pieceRef.current || gameOver || isPaused) return;
+        if (!pieceRef.current || gameOverRef.current || isPausedRef.current) return;
         
         if (!checkCollision(pieceRef.current, dirX, dirY)) {
-            // Update state for visuals
-            setActivePiece(prev => ({ ...prev, pos: { x: prev.pos.x + dirX, y: prev.pos.y + dirY } }));
-            // INSTANTLY update ref so holding down a key doesn't skip math
-            pieceRef.current = { ...pieceRef.current, pos: { x: pieceRef.current.pos.x + dirX, y: pieceRef.current.pos.y + dirY } };
+            const nextPos = { 
+                x: pieceRef.current.pos.x + dirX, 
+                y: pieceRef.current.pos.y + dirY 
+            };
+            
+            // Update both State (for eyes) and Ref (for physics)
+            setActivePiece(prev => ({ ...prev, pos: nextPos }));
+            pieceRef.current = { ...pieceRef.current, pos: nextPos };
         } else if (dirY > 0) {
             lockPiece();
         }
@@ -146,18 +155,51 @@ export default function Tetris() {
 
     useEffect(() => {
         const handleKey = (e) => {
-            if (gameOver) return;
+            // PREVENT PAGE SCROLLING
+            if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', ' '].includes(e.key)) {
+                e.preventDefault();
+            }
+
+            if (gameOverRef.current) {
+                // If the game is over, Space resets it
+                if (e.key === ' ') resetGame();
+                return; 
+            }
+
             if (['ArrowLeft', 'a'].includes(e.key)) handleMove(-1, 0);
             if (['ArrowRight', 'd'].includes(e.key)) handleMove(1, 0);
             if (['ArrowDown', 's'].includes(e.key)) handleMove(0, 1);
             if (['ArrowUp', 'w'].includes(e.key)) {
-                const rotated = rotate(pieceRef.current.shape);
-                if (!checkCollision(pieceRef.current, 0, 0, rotated)) {
-                    setActivePiece(prev => ({ ...prev, shape: rotated }));
-                    pieceRef.current = { ...pieceRef.current, shape: rotated }; // INSTANT UPDATE
+                const currentPiece = pieceRef.current;
+                if (!currentPiece) return;
+
+                const rotatedShape = rotate(currentPiece.shape);
+                
+                // Try 5 different positions: Original, Left 1, Right 1, Left 2, Right 2
+                const kickOffsets = [0, -1, 1, -2, 2];
+                
+                for (let offset of kickOffsets) {
+                    if (!checkCollision(currentPiece, offset, 0, rotatedShape)) {
+                        const nextPos = { 
+                            x: currentPiece.pos.x + offset, 
+                            y: currentPiece.pos.y 
+                        };
+                        
+                        // 1. Update the Ref (Physics)
+                        pieceRef.current = { ...currentPiece, shape: rotatedShape, pos: nextPos };
+                        
+                        // 2. Update the State (Visuals)
+                        setActivePiece({ ...currentPiece, shape: rotatedShape, pos: nextPos });
+                        
+                        break; // Exit loop once it fits!
+                    }
                 }
             }
-            if (e.key === ' ') setIsPaused(p => !p);
+
+            if (e.key === ' ') {
+                e.preventDefault();
+                setIsPaused(p => !p);
+            }
         };
         window.addEventListener('keydown', handleKey);
         return () => window.removeEventListener('keydown', handleKey);
@@ -195,10 +237,22 @@ export default function Tetris() {
         nextPieceRef.current = second;
     };
 
+    useEffect(() => {
+        // This timer runs independently of piece rotations
+        const dropTimer = setInterval(() => {
+            if (!gameOverRef.current && !isPausedRef.current) {
+                handleMove(0, 1);
+            }
+        }, 800);
+
+        return () => clearInterval(dropTimer);
+    }, []);
+
     return (
         <div style={{ display: 'flex', gap: '20px', alignItems: 'flex-start', justifyContent: 'center', color: 'white' }}>
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
                 <h2>Tetris 🧱</h2>
+                <p>Use W, A, S, D or KEY ARROWS to move.<br></br>SAPCE to PAUSE.</p>
                 <div style={{
                 width: COLS * BLOCK_SIZE, height: ROWS * BLOCK_SIZE,
                 backgroundColor: '#111', border: '2px solid #444', position: 'relative'
@@ -221,8 +275,8 @@ export default function Tetris() {
                     position: 'absolute', inset: 0, backgroundColor: 'rgba(0,0,0,0.85)',
                     display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', zIndex: 10
                     }}>
-                    <h3 style={{ color: gameOver ? '#ff4d4d' : '#4ade80' }}>{gameOver ? 'GAME OVER' : 'PAUSED'}</h3>
-                    <button className="reset-btn" onClick={resetGame}>{gameOver ? 'Restart' : 'Resume'}</button>
+                        <h3 style={{ color: gameOver ? '#ff4d4d' : '#4ade80' }}>{gameOver ? 'GAME OVER' : 'PAUSED'}</h3>
+                        <button className="reset-btn" onClick={resetGame}>{gameOver ? 'Restart' : 'Resume'}</button>
                     </div>
                 )}
                 </div>
