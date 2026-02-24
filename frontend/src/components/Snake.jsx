@@ -2,15 +2,15 @@ import { useState, useEffect, useCallback, useRef } from 'react'; // Added useRe
 import axios from 'axios'; // Import axios to match your App.jsx style
 
 // const GRID_SIZE = 20;
-// const GRID_SIZE = 7;
-const GRID_SIZE = 4;
-// const GAME_SPEED = 150;
-const GAME_SPEED = 500;
+const GRID_SIZE = 7;
+// const GRID_SIZE = 4;
+const GAME_SPEED = 150;
+// const GAME_SPEED = 500;
 
 // const INITIAL_SNAKE = [{ x: 10, y: 10 }];
-// const INITIAL_SNAKE = [{ x: 3, y: 3 }];
-const INITIAL_SNAKE = [{ x: 1, y: 2 }];
-const INITIAL_DIRECTION = { x: 0, y: -1 }; 
+const INITIAL_SNAKE = [{ x: 3, y: 3 }];
+// const INITIAL_SNAKE = [{ x: 1, y: 2 }];
+const INITIAL_DIRECTION = { x: 0, y: -1 };
 // const INITIAL_FOOD = { x: 5, y: 5 };
 const INITIAL_FOOD = { x: 1, y: 1 };
 
@@ -27,7 +27,9 @@ export default function Snake() {
     const directionRef = useRef(direction);
     const foodRef = useRef(food);
     const scoreRef = useRef(score); // Added a ref for score
+    const isGameOverRef = useRef(isGameOver);
 
+    useEffect(() => { isGameOverRef.current = isGameOver; }, [isGameOver]);
     useEffect(() => { snakeRef.current = snake; }, [snake]);
     useEffect(() => { directionRef.current = direction; }, [direction]);
     useEffect(() => { foodRef.current = food; }, [food]);
@@ -76,7 +78,12 @@ export default function Snake() {
                     if (currentDir.x !== -1) setDirection({ x: 1, y: 0 });
                     break;
                 case ' ':
-                    setIsPaused((p) => !p);
+                    e.preventDefault();
+                    if (isGameOverRef.current) {
+                        resetGame();
+                    } else {
+                        setIsPaused(p => !p);
+                    }
                     break;
                 default:
                     break;
@@ -169,46 +176,47 @@ export default function Snake() {
                 backgroundColor: '#1a1a1a', border: '2px solid #333',
                 position: 'relative', overflow: 'hidden'
             }}>
-            <div style={{
-                position: 'absolute',
-                left: `${(food.x / GRID_SIZE) * 100}%`,
-                top: `${(food.y / GRID_SIZE) * 100}%`,
-                width: `${100 / GRID_SIZE}%`, height: `${100 / GRID_SIZE}%`,
-                backgroundColor: '#ff4d4d', borderRadius: '50%', boxShadow: '0 0 10px #ff4d4d'
-            }} />
-
-            {snake.map((segment, index) => (
-                <div key={index} style={{
-                    position: 'absolute',
-                    left: `${(segment.x / GRID_SIZE) * 100}%`,
-                    top: `${(segment.y / GRID_SIZE) * 100}%`,
-                    width: `${100 / GRID_SIZE}%`, height: `${100 / GRID_SIZE}%`,
-                    backgroundColor: index === 0 ? '#4ade80' : '#22c55e',
-                    border: '1px solid #1a1a1a',
-                    borderRadius: index === 0 ? '4px' : '2px',
-                    zIndex: index === 0 ? 2 : 1
-                }} />
-            ))}
-
-            {(isGameOver || isPaused) && (
                 <div style={{
-                    position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
-                    backgroundColor: 'rgba(0,0,0,0.8)',
-                    display: 'flex', flexDirection: 'column',
-                    justifyContent: 'center', alignItems: 'center', zIndex: 10
+                    position: 'absolute',
+                    left: `${(food.x / GRID_SIZE) * 100}%`,
+                    top: `${(food.y / GRID_SIZE) * 100}%`,
+                    width: `${100 / GRID_SIZE}%`, height: `${100 / GRID_SIZE}%`,
+                    backgroundColor: '#ff4d4d', borderRadius: '50%', boxShadow: '0 0 10px #ff4d4d'
                 }}>
-                    <h3 style={{ color: isGameOver ? '#ef4444' : '#4ade80' }}>
-                        {isGameOver ? 'GAME OVER' : 'PAUSED'}
-                    </h3>
-                    {isGameOver ? (
-                        <button className="reset-btn" onClick={resetGame}>Try Again</button>
-                    ) : (
-                        <button className="reset-btn" onClick={() => setIsPaused(false)}>Resume</button>
-                    )}
                 </div>
-            )}
-        </div>
 
+                {snake.map((segment, index) => (
+                    <div key={index} style={{
+                        position: 'absolute',
+                        left: `${(segment.x / GRID_SIZE) * 100}%`,
+                        top: `${(segment.y / GRID_SIZE) * 100}%`,
+                        width: `${100 / GRID_SIZE}%`, height: `${100 / GRID_SIZE}%`,
+                        backgroundColor: index === 0 ? '#4ade80' : '#22c55e',
+                        border: '1px solid #1a1a1a',
+                        borderRadius: index === 0 ? '4px' : '2px',
+                        zIndex: index === 0 ? 2 : 1
+                    }}>
+                    </div>
+                ))}
+
+                {(isGameOver || isPaused) && (
+                    <div style={{
+                        position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
+                        backgroundColor: 'rgba(0,0,0,0.8)',
+                        display: 'flex', flexDirection: 'column',
+                        justifyContent: 'center', alignItems: 'center', zIndex: 10
+                    }}>
+                        <h3 style={{ color: isGameOver ? '#ef4444' : '#4ade80' }}>
+                            {isGameOver ? 'GAME OVER' : 'PAUSED'}
+                        </h3>
+                        {isGameOver ? (
+                            <button className="reset-btn" onClick={resetGame}>Try Again</button>
+                        ) : (
+                            <button className="reset-btn" onClick={() => setIsPaused(false)}>Resume</button>
+                        )}
+                    </div>
+                )}
+            </div>
             <p>Use W, A, S, D or KEY ARROWS to move. SAPCE to PAUSE.</p>
         </div>
     );
