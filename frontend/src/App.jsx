@@ -4,6 +4,7 @@ import './App.css';
 import Snake from './components/Snake';
 import XO from './components/XO';
 import Tetris from './components/Tetris';
+import Battleship from './components/Battleships';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080';
 
@@ -215,8 +216,9 @@ function App() {
                 <div className="game-container">
                   {selectedGame === 'XO' && <XO />}
                   {selectedGame === 'Snake' && <Snake />}
+                  {selectedGame === 'Battleships' && <Battleship />}
                   {selectedGame === 'Tetris' && <Tetris />}
-                  {selectedGame !== 'XO' && selectedGame !== 'Snake' && selectedGame !== 'Tetris' && <h2>Coming soon...</h2>}
+                  {selectedGame === '3D Car Drive' && <h2>Coming soon...</h2>}
                 </div>
               )}
             </section>
